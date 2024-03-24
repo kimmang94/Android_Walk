@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+    <application>
+
+        <service android:name="com.defaultcompany.stepcountplugin.StepCounterService"
+            android:exported="true">
+            <!-- 인텐트 필터, 메타데이터 등 필요한 설정 추가 가능 -->
+        </service>
+
+        <!-- 브로드캐스트 리시버 선언 -->
+        <receiver android:name="com.defaultcompany.stepcountplugin.BootCompletedReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+    </application>
+
+</manifest>
