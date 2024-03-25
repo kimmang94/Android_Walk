@@ -64,17 +64,13 @@ public class StepCounterService extends Service implements SensorEventListener {
     private Handler uiHandler;
     private ScheduledExecutorService scheduledExecutorService;
 
-    //private KeyFetcher keyFetcher;
     public int lastSavedTotalSteps;
     Calendar calendar;
     private long lastUpdate = 0;
     private int lastCount = 0;
-    private final int MIN_STEPS = 5; // 최소 변화량
-    private final long MIN_TIME = 10000; // 최소 시간 간격 (10초)
-
+    int stepsSinceAppStarted = 0;
     @Override
     public void onCreate() {
-
         super.onCreate();
         Log.d("OnCreate", "OnCreate");
         calendar = Calendar.getInstance();
@@ -98,6 +94,10 @@ public class StepCounterService extends Service implements SensorEventListener {
         lastStepCount = sharedPreferences.getInt("LastStepCount", 0);
         lastHour = sharedPreferences.getInt("LastHour", -1);
         currentDate = sharedPreferences.getString("CurrentDate", dateFormat.format(new Date()));
+
+        Log.d("totalSteps" , "totalSteps : " + totalSteps);
+        Log.d("lastStepCount" , "lastStepCount : " + lastStepCount);
+
         // 오늘 날짜와 마지막 저장된 날짜를 비교하여, 날짜가 변경되었을 경우 todaySteps를 0으로 초기화
         String lastSavedDate = sharedPreferences.getString("LastSavedDate", currentDate);
         if (!currentDate.equals(lastSavedDate)) {
@@ -118,14 +118,10 @@ public class StepCounterService extends Service implements SensorEventListener {
         startForeground(NOTIFICATION_ID, getNotification(totalSteps));
 
         NotificationManagerCompat notificationManagerCompat = NotificationManagerCompat.from(this);
-        boolean areNotificationsEnabled = notificationManagerCompat.areNotificationsEnabled();
 
         // ExecutorService와 Handler를 초기화합니다.
         executorService = Executors.newSingleThreadExecutor();
         uiHandler = new Handler(Looper.getMainLooper());
-
-        // 키 가져오기 작업을 정기적으로 실행합니다.
-        //scheduleKeyFetching();
 
         // ScheduledExecutorService 초기화
         scheduledExecutorService = Executors.newScheduledThreadPool(1);
@@ -133,7 +129,12 @@ public class StepCounterService extends Service implements SensorEventListener {
         // 정기적인 체크 시작
         scheduleRegularCheck();
     }
-    // HashMap 에 기존 걸음수 데이터 저장
+
+    private void recordInitialStepCount(int currentTotalSteps) {
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putInt("InitialStepCount", currentTotalSteps);
+        editor.apply();
+    }
 
     // 배터리 제한없음 확인 함수
     public void CheckBattery()
@@ -147,9 +148,11 @@ public class StepCounterService extends Service implements SensorEventListener {
         if (isIgnoringOptimizations) {
             // 앱이 배터리 최적화 대상에서 제외됨 ("제한 없음" 상태)
             isStart = true;
+            Log.d("제한없음", "제한없음");
         } else {
             // 앱이 배터리 최적화 대상에 포함됨 ("최적화" 상태)
             isStart = false;
+            Log.d("최적화", "최적화");
         }
     }
 
@@ -166,76 +169,7 @@ public class StepCounterService extends Service implements SensorEventListener {
         Gson gson = new Gson();
         return gson.toJson(saveStepsPerHour);
     }
-    public void resetStepsPerHour() {
-        // 'stepsPerHour' 맵을 초기화하여 새로운 날의 데이터 수집을 준비
-        for (int i = 0; i < 24; i++) {
-            stepsPerHour.put(String.format(Locale.getDefault(), "%02d", i), 0);
-        }
-    }
-    /*
-    private void scheduleKeyFetching() {
-        // ExecutorService와 Handler를 초기화합니다.
-        if (executorService == null || executorService.isShutdown()) {
-            executorService = Executors.newSingleThreadExecutor();
-        }
-        if (uiHandler == null) {
-            uiHandler = new Handler(Looper.getMainLooper());
-        }
-        /*
-        //자정에 랜덤한 초로 서버에 보내는 부분
-        // 현재 시간 및 다음 정시까지 남은 시간 계산
-        Calendar calendar = Calendar.getInstance();
-        long currentTimeMillis = System.currentTimeMillis();
-        long delayUntilNextHour = 3600000 - (calendar.get(Calendar.MINUTE) * 60000 + calendar.get(Calendar.SECOND) * 1000 + calendar.get(Calendar.MILLISECOND));
-        int randomSeconds = (int) (Math.random() * 60); // 0초에서 60초 사이의 랜덤 숫자
-        long totalDelay = delayUntilNextHour + randomSeconds * 1000;
 
-
-        // 정각마다 랜덤한 초로 서버에 보내는 부분
-        // 현재 시간 및 다음 정각까지 남은 시간 계산
-
-        long delayUntilNextHour = 3600000 - (calendar.get(Calendar.MINUTE) * 60000 + calendar.get(Calendar.SECOND) * 1000 + calendar.get(Calendar.MILLISECOND));
-        int randomSeconds = (int) (Math.random() * 60); // 0초에서 60초 사이의 랜덤 숫자
-        //long totalDelay = delayUntilNextHour + randomSeconds * 10000;
-        long totalDelay = 60000;
-        //long delay = 10000; // 10초
-
-       uiHandler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                // KeyFetcher의 getKey 메서드를 실행합니다.T
-                new KeyFetcher().getKey(new KeyFetcher.KeyFetchCallback() {
-
-                    @Override
-                    public void onSuccess(String key, String message) {
-                        // 성공시 처리 로직
-
-                        //Log.d("TAG", "test Key: " + key + ", Message: " + message);
-                        // UI 스레드에서 실행할 작업을 Handler를 통해 전달합니다.
-                        uiHandler.post(() -> {
-                            // UI 스레드에서 키 가져오기 작업의 결과를 처리합니다.
-                            Log.d("StepCounterService", "test Key fetch operation succeeded, key: " + key);
-                        });
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        // 실패시 처리 로직
-                        //Log.e("TAG", "test Error fetching key", e);
-                        // UI 스레드에서 실행할 작업을 Handler를 통해 전달합니다.
-                        uiHandler.post(() -> {
-                            // UI 스레드에서 키 가져오기 작업의 오류를 처리합니다.
-                            //Log.e("StepCounterService", "test Key fetch operation failed");
-                        });
-                    }
-                }, StepCounterService.this); // 수정된 부분
-                Log.d("StepCounterService", "test 11111111 : " + totalDelay);
-                // 다음 정각 + 랜덤 초 후에 다시 이 메서드를 실행합니다.
-                scheduleKeyFetching();
-            }
-        }, totalDelay );
-    }
-       */
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         // 센서 관리자 인스턴스를 가져옵니다.
@@ -288,12 +222,13 @@ public class StepCounterService extends Service implements SensorEventListener {
 
 
         if (event.sensor.getType() == Sensor.TYPE_STEP_COUNTER) {
-            int currentTotalSteps = (int) event.values[0];
+            int currentTotalSteps = 0;//(int) event.values[0];
             int lastSavedSteps = sharedPreferences.getInt("LastSteps", 0);
             lastSavedTotalSteps = sharedPreferences.getInt("TotalSteps", 0);
             long currentTime = System.currentTimeMillis();
             int stepsChange = currentTotalSteps - lastCount;
             long timeDifference = currentTime - lastUpdate;
+            int initialStepCount = sharedPreferences.getInt("InitialStepCount", -1);
 
             Log.d("currentTotalSteps", "currentTotalSteps : " + currentTotalSteps);
             Log.d("lastSavedSteps", "lastSavedSteps : " + lastSavedSteps);
@@ -301,12 +236,13 @@ public class StepCounterService extends Service implements SensorEventListener {
             Log.d("currentTotalSteps", "currentTotalSteps : " + currentTotalSteps);
             Log.d("stepsChange", "stepsChange : " + stepsChange);
 
-            if (stepsChange >= MIN_STEPS && timeDifference >= MIN_TIME) {
-                // 유효한 변화: 걸음수 업데이트 및 시간 갱신
-                updateSteps(currentTotalSteps);
-                lastUpdate = currentTime;
-                lastCount = currentTotalSteps;
+
+            if (initialStepCount == -1) {
+                // 앱이 처음 실행되었을 때 초기값 설정
+                recordInitialStepCount(currentTotalSteps);
+                initialStepCount = currentTotalSteps;
             }
+
             //CheckBattery();
             // 센서 리셋 감지 및 처리
             if (currentTotalSteps < lastSavedSteps) {
@@ -314,7 +250,7 @@ public class StepCounterService extends Service implements SensorEventListener {
                 lastSavedTotalSteps += lastSavedSteps;
             }
 
-            int newSteps = currentTotalSteps - lastSavedSteps;
+            int newSteps = 1;//currentTotalSteps - lastSavedSteps;
             Log.d("newSteps", "newSteps : " + newSteps);
 
             totalSteps = lastSavedTotalSteps + newSteps;
@@ -322,20 +258,18 @@ public class StepCounterService extends Service implements SensorEventListener {
             // 현재 시간과 날짜를 가져옵니다.
             Calendar calendar = Calendar.getInstance();
             String newDate = dateFormat.format(new Date());
-
+            stepsSinceAppStarted = currentTotalSteps - initialStepCount;
             // 날짜 변경 감지 및 처리
             if (!currentDate.equals(newDate)) {
-
                 currentDate = newDate;
                 todaySteps = 0;  // 새 날짜부터 걸음수를 0으로 초기화
                 SetSaveStepHashMap();
                 logSaveStepsPerHour();
-                logStepsPerHour();
+
                 stepsPerHour.clear(); // 시간별 걸음수 데이터 초기화
                 for (int i = 0; i < 24; i++) {
                     stepsPerHour.put(String.format(Locale.getDefault(), "%02d", i), 0);
                 }
-                lastSavedSteps = 0;
                 lastStepCount = 0;
             } else if (currentTotalSteps > lastSavedSteps) {
                 todaySteps += newSteps;
@@ -351,23 +285,13 @@ public class StepCounterService extends Service implements SensorEventListener {
             int stepsThisHour = stepsPerHour.getOrDefault(hourKey, 0) + newSteps;
             GetCurrentStep();
             stepsPerHour.put(hourKey, stepsThisHour);
-
+            logStepsPerHour();
             saveStepsData();
-            updateNotification(todaySteps);
+            updateNotification(stepsSinceAppStarted);
 
         }
     }
-    private void updateSteps(int newSteps) {
-        // 걸음수를 업데이트하는 로직
-        // 예: UI 업데이트, SharedPreferences에 저장 등
-        totalSteps = newSteps; // 예시 업데이트 방법
-        // 필요한 추가 작업 수행...
-    }
 
-    public void handleLoginFailure() {
-
-        SetSaveStepHashMap();
-    }
     // 어제 날짜를 key 값으로 걸음수를 stepsPerHour 로 넣는 함수
     public void SetSaveStepHashMap()
     {
@@ -384,10 +308,6 @@ public class StepCounterService extends Service implements SensorEventListener {
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
         // Not used
-    }
-
-    public int getTotalSteps() {
-        return todaySteps; // 하루 동안의 발걸음수를 반환
     }
 
     @Override
@@ -414,13 +334,7 @@ public class StepCounterService extends Service implements SensorEventListener {
             }
         }
     }
-    /*
-    public void userTest(String userID, String userPW)
-    {
-        KeyFetcher.name = userID;
-        KeyFetcher.pw = userPW;
-    }
-*/
+
     public void triggerSensorCheck() {
         sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         stepSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER);
@@ -484,6 +398,7 @@ public class StepCounterService extends Service implements SensorEventListener {
         return stepsPerHour;
     }
 
+    // 유니티에서 호출되는 함수
     public String getStepsPerHourJson() {
         Gson gson = new Gson();
         try {
@@ -512,6 +427,7 @@ public class StepCounterService extends Service implements SensorEventListener {
                 stepsPerHour.put(String.format(Locale.getDefault(), "%02d", i), 0);
             }
         }
+
     }
 
     private void saveStepsData() {
@@ -531,7 +447,7 @@ public class StepCounterService extends Service implements SensorEventListener {
     @Override
     public void onDestroy() {
         // 서비스 종료 전에 알림 업데이트
-        updateNotification(todaySteps);
+        updateNotification(stepsSinceAppStarted);
 
         Intent restartServiceIntent = new Intent(getApplicationContext(), this.getClass());
         restartServiceIntent.setPackage(getPackageName());
@@ -594,6 +510,7 @@ public class StepCounterService extends Service implements SensorEventListener {
         for (Map.Entry<String, Integer> entry : stepsPerHour.entrySet()) {
             String hour = entry.getKey();
             Integer steps = entry.getValue();
+            Log.d("StepCounterService", "시간: " + hour + ", 걸음수: " + steps);
         }
     }
     private void scheduleRegularCheck() {
