@@ -62,6 +62,7 @@ public class StepCounterService extends Service implements SensorEventListener {
     private Handler uiHandler;
     private ScheduledExecutorService scheduledExecutorService;
     public int lastSavedTotalSteps;
+    int stepsSinceAppStarted;
     Calendar calendar;
     @Override
     public void onCreate() {
@@ -247,7 +248,8 @@ public class StepCounterService extends Service implements SensorEventListener {
             }
             int initialStepCount = sharedPreferences.getInt("InitialStepCount", 0);
             // 앱이 시작한 후의 실제 걸음수를 계산합니다.
-            int stepsSinceAppStarted = currentTotalSteps - initialStepCount;
+            stepsSinceAppStarted = currentTotalSteps - initialStepCount;
+            Log.d("stepsSinceAppStarted", "stepsSinceAppStarted : " + stepsSinceAppStarted);
             //CheckBattery();
             // 센서 리셋 감지 및 처리
             if (currentTotalSteps < lastSavedSteps) {
@@ -293,7 +295,8 @@ public class StepCounterService extends Service implements SensorEventListener {
             GetCurrentStep();
             stepsPerHour.put(hourKey, stepsThisHour);
             saveStepsData();
-            updateNotification(totalSteps);
+            updateNotification(stepsSinceAppStarted);
+            Log.d("lastSavedSteps 1111", "lastSavedSteps 1111 : " + lastSavedSteps);
         }
     }
 
@@ -420,7 +423,7 @@ public class StepCounterService extends Service implements SensorEventListener {
     @Override
     public void onDestroy() {
         // 서비스 종료 전에 알림 업데이트
-        updateNotification(totalSteps);
+        updateNotification(stepsSinceAppStarted);
 
         Intent restartServiceIntent = new Intent(getApplicationContext(), this.getClass());
         restartServiceIntent.setPackage(getPackageName());
