@@ -287,8 +287,8 @@ public class StepCounterService extends Service implements SensorEventListener {
             stepsPerHour.put(hourKey, stepsThisHour);
             logStepsPerHour();
             saveStepsData();
-            updateNotification(stepsSinceAppStarted);
-
+            updateNotification(totalSteps);
+            Log.d("stepsSinceAppStarted", "stepsSinceAppStarted : " + stepsSinceAppStarted );
         }
     }
 
@@ -447,7 +447,7 @@ public class StepCounterService extends Service implements SensorEventListener {
     @Override
     public void onDestroy() {
         // 서비스 종료 전에 알림 업데이트
-        updateNotification(stepsSinceAppStarted);
+        updateNotification(totalSteps);
 
         Intent restartServiceIntent = new Intent(getApplicationContext(), this.getClass());
         restartServiceIntent.setPackage(getPackageName());
