@@ -50,7 +50,6 @@ public class StepCounterService extends Service implements SensorEventListener {
     private SimpleDateFormat dateFormat;
     private static final int NOTIFICATION_ID = 1;
     private static final String CHANNEL_ID = "StepCounterServiceChannel";
-    public static boolean isSuccess ;
     private HashMap<String, Integer> stepsPerHour = new HashMap<>();
     private HashMap<String, HashMap<String, Integer>> saveStepsPerHour = new HashMap<>();
     private int lastStepCount = 0;
@@ -58,21 +57,15 @@ public class StepCounterService extends Service implements SensorEventListener {
     private SharedPreferences sharedPreferences;
     private NotificationManager notificationManager;
     private int todaySteps = 0; // 하루 동안의 발걸음수를 저장할 변수
-
     public static boolean isStart;
     private ExecutorService executorService;
     private Handler uiHandler;
     private ScheduledExecutorService scheduledExecutorService;
-
     public int lastSavedTotalSteps;
     Calendar calendar;
-    private long lastUpdate = 0;
-    private int lastCount = 0;
-    int stepsSinceAppStarted = 0;
     @Override
     public void onCreate() {
         super.onCreate();
-        Log.d("OnCreate", "OnCreate");
         calendar = Calendar.getInstance();
 
         dateFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
@@ -80,7 +73,6 @@ public class StepCounterService extends Service implements SensorEventListener {
 
         sharedPreferences = getSharedPreferences("StepCounterPrefs", Context.MODE_PRIVATE);
         loadStepsData();
-
         // stepsPerHour 초기화 로직을 loadStepsData 메서드 안으로 이동
         if (stepsPerHour == null || stepsPerHour.isEmpty()) {
             stepsPerHour = new HashMap<>();
@@ -88,15 +80,12 @@ public class StepCounterService extends Service implements SensorEventListener {
                 stepsPerHour.put(String.format(Locale.getDefault(), "%02d", i), 0);
             }
         }
-
         // 이전에 저장된 걸음 수를 불러옵니다.
         totalSteps = sharedPreferences.getInt("TotalSteps", 0);
+        Log.d("totalSteps 1111", "totalSteps 1111 : " + totalSteps);
         lastStepCount = sharedPreferences.getInt("LastStepCount", 0);
         lastHour = sharedPreferences.getInt("LastHour", -1);
         currentDate = sharedPreferences.getString("CurrentDate", dateFormat.format(new Date()));
-
-        Log.d("totalSteps" , "totalSteps : " + totalSteps);
-        Log.d("lastStepCount" , "lastStepCount : " + lastStepCount);
 
         // 오늘 날짜와 마지막 저장된 날짜를 비교하여, 날짜가 변경되었을 경우 todaySteps를 0으로 초기화
         String lastSavedDate = sharedPreferences.getString("LastSavedDate", currentDate);
@@ -130,13 +119,27 @@ public class StepCounterService extends Service implements SensorEventListener {
         scheduleRegularCheck();
     }
 
-    private void recordInitialStepCount(int currentTotalSteps) {
-        SharedPreferences.Editor editor = sharedPreferences.edit();
-        editor.putInt("InitialStepCount", currentTotalSteps);
-        editor.apply();
-    }
+    private void loadStepsData() {
+        totalSteps = sharedPreferences.getInt("TotalSteps", 0);
+        Log.d("totalSteps 2222", "totalSteps 2222 : " + totalSteps);
+        lastStepCount = sharedPreferences.getInt("LastStepCount", 0);
+        lastHour = sharedPreferences.getInt("LastHour", -1);
+        currentDate = sharedPreferences.getString("CurrentDate", dateFormat.format(new Date()));
 
-    // 배터리 제한없음 확인 함수
+        String stepsPerHourJson = sharedPreferences.getString("StepsPerHour", "{}");
+        Gson gson = new Gson();
+        stepsPerHour = gson.fromJson(stepsPerHourJson, new TypeToken<HashMap<String, Integer>>(){}.getType());
+
+        // 기존 데이터가 없는 경우 시간별로 0으로 초기화
+        if (stepsPerHour == null || stepsPerHour.isEmpty()) {
+            stepsPerHour = new HashMap<>();
+            for (int i = 0; i < 24; i++) {
+                stepsPerHour.put(String.format(Locale.getDefault(), "%02d", i), 0);
+            }
+        }
+
+    }
+    // 배터리 최적화의 상태를 알아보는 함수
     public void CheckBattery()
     {
         PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
@@ -148,14 +151,13 @@ public class StepCounterService extends Service implements SensorEventListener {
         if (isIgnoringOptimizations) {
             // 앱이 배터리 최적화 대상에서 제외됨 ("제한 없음" 상태)
             isStart = true;
-            Log.d("제한없음", "제한없음");
         } else {
             // 앱이 배터리 최적화 대상에 포함됨 ("최적화" 상태)
             isStart = false;
-            Log.d("최적화", "최적화");
         }
     }
 
+    // 배터리 최적화 퍼미션을 띄우는 함수
     public static boolean isIgnoringBatteryOptimizations(Context context) {
         PowerManager powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
@@ -164,6 +166,19 @@ public class StepCounterService extends Service implements SensorEventListener {
         return true; // API 레벨 23 미만에서는 항상 true 반환
     }
 
+    // 배터리최적화 퍼미션
+    public void openBatteryOptimizationSettings() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Intent intent = new Intent();
+            intent.setAction(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            try {
+                startActivity(intent);
+            } catch (ActivityNotFoundException e) {
+                Log.e("StepCounterService", "Battery optimization settings activity not found", e);
+            }
+        }
+    }
     // saveStepsPerHour 에 저장된 HashMap 값을 Json 으로 유니티에서 호출하게끔 하는 함수
     public String getSaveStepsPerHourJson() {
         Gson gson = new Gson();
@@ -192,7 +207,7 @@ public class StepCounterService extends Service implements SensorEventListener {
         }
         int lastSavedSteps = sharedPreferences.getInt("LastSteps", 0);
         totalSteps = lastSavedSteps;
-
+        Log.d("totalSteps 3333", "totalSteps 3333 : " + totalSteps);
         // 포그라운드 서비스 알림을 업데이트합니다.
         updateNotification(todaySteps);
 
@@ -216,7 +231,6 @@ public class StepCounterService extends Service implements SensorEventListener {
 
     @Override
     public void onSensorChanged(SensorEvent event) {
-        Log.d("onSensorChanged", "onSensorChanged");
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd", Locale.getDefault());
         String todayDateKey = dateFormat.format(new Date());
 
@@ -225,24 +239,15 @@ public class StepCounterService extends Service implements SensorEventListener {
             int currentTotalSteps = (int) event.values[0];
             int lastSavedSteps = sharedPreferences.getInt("LastSteps", 0);
             lastSavedTotalSteps = sharedPreferences.getInt("TotalSteps", 0);
-            long currentTime = System.currentTimeMillis();
-            int stepsChange = currentTotalSteps - lastCount;
-            long timeDifference = currentTime - lastUpdate;
-            int initialStepCount = sharedPreferences.getInt("InitialStepCount", -1);
 
-            Log.d("currentTotalSteps", "currentTotalSteps : " + currentTotalSteps);
-            Log.d("lastSavedSteps", "lastSavedSteps : " + lastSavedSteps);
-            Log.d("lastSavedTotalSteps", "lastSavedTotalSteps : " + lastSavedTotalSteps);
-            Log.d("currentTotalSteps", "currentTotalSteps : " + currentTotalSteps);
-            Log.d("stepsChange", "stepsChange : " + stepsChange);
-
-
-            if (initialStepCount == -1) {
-                // 앱이 처음 실행되었을 때 초기값 설정
-                recordInitialStepCount(currentTotalSteps);
-                initialStepCount = currentTotalSteps;
+            if (sharedPreferences.getInt("InitialStepCount", -1) == -1) {
+                SharedPreferences.Editor editor = sharedPreferences.edit();
+                editor.putInt("InitialStepCount", currentTotalSteps);
+                editor.apply();
             }
-
+            int initialStepCount = sharedPreferences.getInt("InitialStepCount", 0);
+            // 앱이 시작한 후의 실제 걸음수를 계산합니다.
+            int stepsSinceAppStarted = currentTotalSteps - initialStepCount;
             //CheckBattery();
             // 센서 리셋 감지 및 처리
             if (currentTotalSteps < lastSavedSteps) {
@@ -250,11 +255,13 @@ public class StepCounterService extends Service implements SensorEventListener {
                 lastSavedTotalSteps += lastSavedSteps;
             }
 
-            int newSteps = currentTotalSteps - lastSavedSteps;
-            Log.d("newSteps", "newSteps : " + newSteps);
+            int newSteps = currentTotalSteps - lastSavedTotalSteps;
+            Log.d("newSteps 1111 current", "newSteps 1111 current : " + currentTotalSteps);
+            Log.d("newSteps 1111 lastSavedTotalSteps", "newSteps 1111 lastSavedTotalSteps : " + lastSavedTotalSteps);
+            Log.d("newSteps 1111", "newSteps 1111 : " + newSteps);
 
             totalSteps = lastSavedTotalSteps + newSteps;
-            Log.d("totalSteps", "newSteps : " + newSteps);
+            Log.d("totalSteps 4444", "totalSteps 4444 : " + totalSteps);
             // 현재 시간과 날짜를 가져옵니다.
             Calendar calendar = Calendar.getInstance();
             String newDate = dateFormat.format(new Date());
@@ -285,10 +292,8 @@ public class StepCounterService extends Service implements SensorEventListener {
             int stepsThisHour = stepsPerHour.getOrDefault(hourKey, 0) + newSteps;
             GetCurrentStep();
             stepsPerHour.put(hourKey, stepsThisHour);
-            logStepsPerHour();
             saveStepsData();
             updateNotification(totalSteps);
-            Log.d("stepsSinceAppStarted", "stepsSinceAppStarted : " + stepsSinceAppStarted );
         }
     }
 
@@ -305,6 +310,7 @@ public class StepCounterService extends Service implements SensorEventListener {
     {
         return totalSteps;
     }
+    // 없으면 에러발생
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
         // Not used
@@ -321,20 +327,7 @@ public class StepCounterService extends Service implements SensorEventListener {
         }
     }
 
-    // 배터리최적화 퍼미션
-    public void openBatteryOptimizationSettings() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            Intent intent = new Intent();
-            intent.setAction(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            try {
-                startActivity(intent);
-            } catch (ActivityNotFoundException e) {
-                Log.e("StepCounterService", "Battery optimization settings activity not found", e);
-            }
-        }
-    }
-
+    // 유니티에서 호출하는 함수
     public void triggerSensorCheck() {
         sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         stepSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER);
@@ -346,6 +339,7 @@ public class StepCounterService extends Service implements SensorEventListener {
         }
     }
 
+    // notificationChannel 을 만드는 함수
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel serviceChannel = new NotificationChannel(
@@ -366,7 +360,7 @@ public class StepCounterService extends Service implements SensorEventListener {
         }
     }
 
-    // 알림을 생성하고 업데이트하는 메서드
+    // 알림을 생성하고 업데이트하는 메서드, 알림의 아이콘 등 관리
     private Notification getNotification(int stepCount) {
 
         // 유니티 액티비티에 대한 인텐트 생성
@@ -394,9 +388,6 @@ public class StepCounterService extends Service implements SensorEventListener {
         return builder.build();
     }
 
-    public HashMap<String, Integer> getStepsPerHour() {
-        return stepsPerHour;
-    }
 
     // 유니티에서 호출되는 함수
     public String getStepsPerHourJson() {
@@ -410,26 +401,8 @@ public class StepCounterService extends Service implements SensorEventListener {
             return "{}";
         }
     }
-    private void loadStepsData() {
-        totalSteps = sharedPreferences.getInt("TotalSteps", 0);
-        lastStepCount = sharedPreferences.getInt("LastStepCount", 0);
-        lastHour = sharedPreferences.getInt("LastHour", -1);
-        currentDate = sharedPreferences.getString("CurrentDate", dateFormat.format(new Date()));
 
-        String stepsPerHourJson = sharedPreferences.getString("StepsPerHour", "{}");
-        Gson gson = new Gson();
-        stepsPerHour = gson.fromJson(stepsPerHourJson, new TypeToken<HashMap<String, Integer>>(){}.getType());
-
-        // 기존 데이터가 없는 경우 시간별로 0으로 초기화
-        if (stepsPerHour == null || stepsPerHour.isEmpty()) {
-            stepsPerHour = new HashMap<>();
-            for (int i = 0; i < 24; i++) {
-                stepsPerHour.put(String.format(Locale.getDefault(), "%02d", i), 0);
-            }
-        }
-
-    }
-
+    // Step 들을 저장하는 함수
     private void saveStepsData() {
         SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.putInt("TotalSteps", totalSteps);
@@ -469,19 +442,6 @@ public class StepCounterService extends Service implements SensorEventListener {
         saveStepsData();
     }
 
-    private void sendStepsMessage(int hour, Integer steps) {
-        if (steps == null) {
-            steps = 0;
-        }
-        String message = "Hour: " + hour + ", Steps: " + steps;
-    }
-
-    private void saveLastSteps(int lastSteps) {
-        SharedPreferences.Editor editor = sharedPreferences.edit();
-        editor.putInt("LastSteps", lastSteps);
-        editor.apply();
-    }
-
     // 알림을 업데이트하는 메서드
     public void updateNotification(int stepCount) {
 
@@ -505,14 +465,7 @@ public class StepCounterService extends Service implements SensorEventListener {
             }
         }
     }
-    // HashMap stepsPerHour 의 key value log를 찍는 함수
-    public void logStepsPerHour() {
-        for (Map.Entry<String, Integer> entry : stepsPerHour.entrySet()) {
-            String hour = entry.getKey();
-            Integer steps = entry.getValue();
-            Log.d("StepCounterService", "시간: " + hour + ", 걸음수: " + steps);
-        }
-    }
+
     private void scheduleRegularCheck() {
         // 30분마다 실행
         long delay = 30 * 60 * 1000;
