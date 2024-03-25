@@ -222,7 +222,7 @@ public class StepCounterService extends Service implements SensorEventListener {
 
 
         if (event.sensor.getType() == Sensor.TYPE_STEP_COUNTER) {
-            int currentTotalSteps = 0;//(int) event.values[0];
+            int currentTotalSteps = (int) event.values[0];
             int lastSavedSteps = sharedPreferences.getInt("LastSteps", 0);
             lastSavedTotalSteps = sharedPreferences.getInt("TotalSteps", 0);
             long currentTime = System.currentTimeMillis();
@@ -250,7 +250,7 @@ public class StepCounterService extends Service implements SensorEventListener {
                 lastSavedTotalSteps += lastSavedSteps;
             }
 
-            int newSteps = 1;//currentTotalSteps - lastSavedSteps;
+            int newSteps = currentTotalSteps - lastSavedSteps;
             Log.d("newSteps", "newSteps : " + newSteps);
 
             totalSteps = lastSavedTotalSteps + newSteps;
