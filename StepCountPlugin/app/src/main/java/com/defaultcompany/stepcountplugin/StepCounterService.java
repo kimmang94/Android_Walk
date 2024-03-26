@@ -291,9 +291,12 @@ public class StepCounterService extends Service implements SensorEventListener {
             editor.apply();
             // 현재 시간대의 걸음 수를 계산하고 저장합니다.
             String hourKey = String.format(Locale.getDefault(), "%02d", calendar.get(Calendar.HOUR_OF_DAY));
-            int stepsThisHour = stepsPerHour.getOrDefault(hourKey, 0) + newSteps;
+
+            int stepsThisHour = stepsPerHour.getOrDefault(hourKey, 0) + stepsSinceAppStarted;
             GetCurrentStep();
             stepsPerHour.put(hourKey, stepsThisHour);
+            Log.d("hourKey 1111", "hourKey 1111 : " + hourKey);
+            Log.d("stepsThisHour 1111", "stepsThisHour 1111 : " + stepsThisHour);
             saveStepsData();
             updateNotification(stepsSinceAppStarted);
             Log.d("lastSavedSteps 1111", "lastSavedSteps 1111 : " + lastSavedSteps);
@@ -396,6 +399,7 @@ public class StepCounterService extends Service implements SensorEventListener {
     public String getStepsPerHourJson() {
         Gson gson = new Gson();
         try {
+            // stepsSinceAppStarted
             String json = gson.toJson(stepsPerHour);
             Log.e("JSON000", "test json : " + json);
             return json;
