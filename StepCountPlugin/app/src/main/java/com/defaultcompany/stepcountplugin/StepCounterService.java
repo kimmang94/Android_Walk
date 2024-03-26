@@ -257,7 +257,7 @@ public class StepCounterService extends Service implements SensorEventListener {
                 lastSavedTotalSteps += lastSavedSteps;
             }
 
-            int newSteps = currentTotalSteps - lastSavedTotalSteps;
+            int newSteps = stepsSinceAppStarted;//currentTotalSteps - lastSavedTotalSteps;
             Log.d("newSteps 1111 current", "newSteps 1111 current : " + currentTotalSteps);
             Log.d("newSteps 1111 lastSavedTotalSteps", "newSteps 1111 lastSavedTotalSteps : " + lastSavedTotalSteps);
             Log.d("newSteps 1111", "newSteps 1111 : " + newSteps);
@@ -268,6 +268,9 @@ public class StepCounterService extends Service implements SensorEventListener {
             Calendar calendar = Calendar.getInstance();
             String newDate = dateFormat.format(new Date());
             stepsSinceAppStarted = currentTotalSteps - initialStepCount;
+            Log.d("initialStepCount 1111", "initialStepCount 1111 : " + initialStepCount);
+            Log.d("stepsSinceAppStarted 1111", "stepsSinceAppStarted 1111 : " + stepsSinceAppStarted);
+            Log.d("currentTotalSteps 1111", "currentTotalSteps 1111 : " + currentTotalSteps);
             // 날짜 변경 감지 및 처리
             if (!currentDate.equals(newDate)) {
                 currentDate = newDate;
@@ -293,13 +296,16 @@ public class StepCounterService extends Service implements SensorEventListener {
             String hourKey = String.format(Locale.getDefault(), "%02d", calendar.get(Calendar.HOUR_OF_DAY));
 
             int stepsThisHour = stepsPerHour.getOrDefault(hourKey, 0) + stepsSinceAppStarted;
-            GetCurrentStep();
-            stepsPerHour.put(hourKey, stepsThisHour);
-            Log.d("hourKey 1111", "hourKey 1111 : " + hourKey);
             Log.d("stepsThisHour 1111", "stepsThisHour 1111 : " + stepsThisHour);
+            GetCurrentStep();
+            stepsPerHour.put(hourKey, stepsSinceAppStarted);
+            Log.d("hourKey 1111", "hourKey 1111 : " + hourKey);
+            Log.d("stepsThisHour 2222", "stepsThisHour 2222 : " + stepsThisHour);
             saveStepsData();
             updateNotification(stepsSinceAppStarted);
             Log.d("lastSavedSteps 1111", "lastSavedSteps 1111 : " + lastSavedSteps);
+            SetSaveStepHashMap();
+            logSaveStepsPerHourContents();
         }
     }
 
@@ -309,7 +315,6 @@ public class StepCounterService extends Service implements SensorEventListener {
         Calendar calendar = Calendar.getInstance();
         calendar.add(Calendar.DATE, -1);
         String yesterdayDate = new SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(calendar.getTime());
-
         saveStepsPerHour.put(yesterdayDate,stepsPerHour);
     }
     public int GetCurrentStep()
@@ -394,7 +399,22 @@ public class StepCounterService extends Service implements SensorEventListener {
         return builder.build();
     }
 
+    // 서버안될때 saveStepsPerHour 의 key와 value 값 저장 log
+    public void logSaveStepsPerHourContents() {
+        for (Map.Entry<String, HashMap<String, Integer>> entry : saveStepsPerHour.entrySet()) {
+            String dateKey = entry.getKey(); // 어제 날짜 (yesterdayDate)
+            HashMap<String, Integer> dailySteps = entry.getValue(); // 해당 날짜의 stepsPerHour 맵
 
+            Log.d("StepCounterService", "Date: " + dateKey); // 날짜 로그 출력
+
+            for (Map.Entry<String, Integer> stepsEntry : dailySteps.entrySet()) {
+                String hour = stepsEntry.getKey(); // 시간대
+                Integer steps = stepsEntry.getValue(); // 그 시간대의 걸음 수
+
+                Log.d("StepCounterService 121212", "Date1212 : " +dateKey + " Hour 1212 : " + hour + ", Steps 1212: " + steps); // 시간대별 걸음 수 로그 출력
+            }
+        }
+    }
     // 유니티에서 호출되는 함수
     public String getStepsPerHourJson() {
         Gson gson = new Gson();
