@@ -105,7 +105,7 @@ public class StepCounterService extends Service implements SensorEventListener {
         }
 
         createNotificationChannel();
-        startForeground(NOTIFICATION_ID, getNotification(totalSteps));
+        startForeground(NOTIFICATION_ID, getNotification(stepsSinceAppStarted));
 
         NotificationManagerCompat notificationManagerCompat = NotificationManagerCompat.from(this);
 
@@ -122,6 +122,7 @@ public class StepCounterService extends Service implements SensorEventListener {
 
     private void loadStepsData() {
         totalSteps = sharedPreferences.getInt("TotalSteps", 0);
+        stepsSinceAppStarted = sharedPreferences.getInt("stepsSinceAppStarted", 0);
         Log.d("totalSteps 2222", "totalSteps 2222 : " + totalSteps);
         lastStepCount = sharedPreferences.getInt("LastStepCount", 0);
         lastHour = sharedPreferences.getInt("LastHour", -1);
@@ -210,7 +211,7 @@ public class StepCounterService extends Service implements SensorEventListener {
         totalSteps = lastSavedSteps;
         Log.d("totalSteps 3333", "totalSteps 3333 : " + totalSteps);
         // 포그라운드 서비스 알림을 업데이트합니다.
-        updateNotification(todaySteps);
+        updateNotification(stepsSinceAppStarted);
 
         // 재시작할 때 사용할 인텐트를 준비합니다.
         Intent restartServiceIntent = new Intent(getApplicationContext(), this.getClass());
@@ -239,7 +240,7 @@ public class StepCounterService extends Service implements SensorEventListener {
         if (event.sensor.getType() == Sensor.TYPE_STEP_COUNTER) {
             int currentTotalSteps = (int) event.values[0];
             int lastSavedSteps = sharedPreferences.getInt("LastSteps", 0);
-            lastSavedTotalSteps = sharedPreferences.getInt("TotalSteps", 0);
+            lastSavedTotalSteps = sharedPreferences.getInt("stepsSinceAppStarted", 0);
 
             if (sharedPreferences.getInt("InitialStepCount", -1) == -1) {
                 SharedPreferences.Editor editor = sharedPreferences.edit();
@@ -433,6 +434,7 @@ public class StepCounterService extends Service implements SensorEventListener {
     private void saveStepsData() {
         SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.putInt("TotalSteps", totalSteps);
+        editor.putInt("stepsSinceAppStarted", stepsSinceAppStarted);
         editor.putInt("LastStepCount", lastStepCount);
         editor.putInt("LastHour", lastHour);
         editor.putString("CurrentDate", currentDate);
