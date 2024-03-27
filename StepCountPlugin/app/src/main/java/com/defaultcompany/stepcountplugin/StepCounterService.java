@@ -64,6 +64,8 @@ public class StepCounterService extends Service implements SensorEventListener {
     public int lastSavedTotalSteps;
     int stepsSinceAppStarted;
     Calendar calendar;
+    int timeStep;
+    private int currentHour;
     @Override
     public void onCreate() {
         super.onCreate();
@@ -83,6 +85,7 @@ public class StepCounterService extends Service implements SensorEventListener {
         }
         // 이전에 저장된 걸음 수를 불러옵니다.
         totalSteps = sharedPreferences.getInt("TotalSteps", 0);
+
         Log.d("totalSteps 1111", "totalSteps 1111 : " + totalSteps);
         lastStepCount = sharedPreferences.getInt("LastStepCount", 0);
         lastHour = sharedPreferences.getInt("LastHour", -1);
@@ -209,7 +212,6 @@ public class StepCounterService extends Service implements SensorEventListener {
         }
         int lastSavedSteps = sharedPreferences.getInt("LastSteps", 0);
         totalSteps = lastSavedSteps;
-        Log.d("totalSteps 3333", "totalSteps 3333 : " + totalSteps);
         // 포그라운드 서비스 알림을 업데이트합니다.
         updateNotification(stepsSinceAppStarted);
 
@@ -234,7 +236,10 @@ public class StepCounterService extends Service implements SensorEventListener {
     @Override
     public void onSensorChanged(SensorEvent event) {
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd", Locale.getDefault());
-        String todayDateKey = dateFormat.format(new Date());
+        currentHour = calendar.get(Calendar.HOUR_OF_DAY);
+        Log.d("currentHour", "currentHour" + currentHour);
+        String hourKey = String.format(Locale.getDefault(), "%02d", calendar.get(Calendar.HOUR_OF_DAY));
+        int stepsThisHour = stepsPerHour.getOrDefault(hourKey, 0) + stepsSinceAppStarted;
 
 
         if (event.sensor.getType() == Sensor.TYPE_STEP_COUNTER) {
@@ -259,19 +264,15 @@ public class StepCounterService extends Service implements SensorEventListener {
             }
 
             int newSteps = stepsSinceAppStarted;//currentTotalSteps - lastSavedTotalSteps;
-            Log.d("newSteps 1111 current", "newSteps 1111 current : " + currentTotalSteps);
-            Log.d("newSteps 1111 lastSavedTotalSteps", "newSteps 1111 lastSavedTotalSteps : " + lastSavedTotalSteps);
-            Log.d("newSteps 1111", "newSteps 1111 : " + newSteps);
+            int test = currentTotalSteps - lastSavedTotalSteps;
+            Log.d("currentTotalSteps - lastSavedTotalSteps", "currentTotalSteps - lastSavedTotalSteps : " + test);
 
             totalSteps = lastSavedTotalSteps + newSteps;
-            Log.d("totalSteps 4444", "totalSteps 4444 : " + totalSteps);
             // 현재 시간과 날짜를 가져옵니다.
             Calendar calendar = Calendar.getInstance();
             String newDate = dateFormat.format(new Date());
-            stepsSinceAppStarted = currentTotalSteps - initialStepCount;
-            Log.d("initialStepCount 1111", "initialStepCount 1111 : " + initialStepCount);
-            Log.d("stepsSinceAppStarted 1111", "stepsSinceAppStarted 1111 : " + stepsSinceAppStarted);
-            Log.d("currentTotalSteps 1111", "currentTotalSteps 1111 : " + currentTotalSteps);
+
+            sharedPreferences.getInt("timeStep", stepsSinceAppStarted);
             // 날짜 변경 감지 및 처리
             if (!currentDate.equals(newDate)) {
                 currentDate = newDate;
@@ -294,14 +295,19 @@ public class StepCounterService extends Service implements SensorEventListener {
             editor.putInt("TodaySteps", todaySteps);
             editor.apply();
             // 현재 시간대의 걸음 수를 계산하고 저장합니다.
-            String hourKey = String.format(Locale.getDefault(), "%02d", calendar.get(Calendar.HOUR_OF_DAY));
 
-            int stepsThisHour = stepsPerHour.getOrDefault(hourKey, 0) + stepsSinceAppStarted;
-            Log.d("stepsThisHour 1111", "stepsThisHour 1111 : " + stepsThisHour);
+            int newHour = calendar.get(Calendar.HOUR_OF_DAY); // 24시간 형식의 현재 시간을 가져옵니다.
+
+            if (currentHour != newHour) { // 현재 시간이 저장된 시간과 다르면
+                Log.d("TimeCheck", "시간이 변경되었습니다. 현재 시간: " + newHour + "시");
+                timeStep = sharedPreferences.getInt("timeStep", 0); // 현재 시간을 업데이트합니다.
+            }
+
+            Log.d("Time" , "currentHour : " + currentHour + "newHour : " + newHour);
+
             GetCurrentStep();
             stepsPerHour.put(hourKey, stepsSinceAppStarted);
-            Log.d("hourKey 1111", "hourKey 1111 : " + hourKey);
-            Log.d("stepsThisHour 2222", "stepsThisHour 2222 : " + stepsThisHour);
+            Log.d("tqtq Hash", "tqtq Hash : " + hourKey + "count : " + timeStep);
             saveStepsData();
             updateNotification(stepsSinceAppStarted);
             Log.d("lastSavedSteps 1111", "lastSavedSteps 1111 : " + lastSavedSteps);
