@@ -10,6 +10,7 @@ import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.Binder;
+import android.os.Debug;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.provider.Settings;
@@ -65,6 +66,7 @@ public class StepCounterService extends Service implements SensorEventListener {
     Calendar calendar;
     int hourStep;
     int totalStep;
+    int addStep;
     @Override
     public void onCreate() {
         super.onCreate();
@@ -267,6 +269,9 @@ public class StepCounterService extends Service implements SensorEventListener {
             String newHour = String.format(Locale.getDefault(), "%02d", calendar.get(Calendar.HOUR_OF_DAY));
             sharedPreferences.getInt("timeStep", stepsSinceAppStarted);
             updateSteps(stepsSinceAppStarted);
+            Log.d("2024 stepsSinceAppStarted", " 2040 stepsSinceAppStarted : " + stepsSinceAppStarted);
+            totalStep += addStep;
+            Log.d("TotalStep 20240404" , "TotalStep 20240404 : " + totalStep);
             // 날짜 변경 감지 및 처리
             if (!currentDate.equals(newDate)) {
                 currentDate = newDate;
@@ -295,7 +300,7 @@ public class StepCounterService extends Service implements SensorEventListener {
             Log.d("stepsSinceAppStarted", "hourKey : " + hourKey + "stepsSinceAppStarted : " + stepsSinceAppStarted);
             saveStepsData();
             totalSteps += hourStep;
-            updateNotification(totalSteps);
+            updateNotification(totalStep);
 
         }
     }
@@ -309,9 +314,11 @@ public class StepCounterService extends Service implements SensorEventListener {
         if (stepsPerHour.containsKey(currentHourKey)) {
             // 이미 해당 시간대에 기록이 있다면, 새로운 걸음 수를 추가
             currentSteps = stepsPerHour.get(currentHourKey);
-            int addStep = stepsSinceAppStarted - currentSteps;
+            addStep = stepsSinceAppStarted - currentSteps;
+            Log.d("20240404 addStep", "20240404 addSteps : " + addStep);
             hourStep += addStep;
-            stepsPerHour.put(currentHourKey, afterStep);
+            stepsPerHour.put(currentHourKey, hourStep);
+            Log.d("20240404 hourStep","20240404 hourStep : " + hourStep);
         } else {
             // 새로운 시간대에 첫 기록이라면, 걸음 수를 초기화
             for (int i = 0; i < 24; i++) {
@@ -337,7 +344,7 @@ public class StepCounterService extends Service implements SensorEventListener {
     }
     public int GetCurrentStep()
     {
-        return totalSteps;
+        return totalStep;
     }
     // 없으면 에러발생
     @Override
@@ -463,7 +470,7 @@ public class StepCounterService extends Service implements SensorEventListener {
     @Override
     public void onDestroy() {
         // 서비스 종료 전에 알림 업데이트
-        updateNotification(totalSteps);
+        updateNotification(totalStep);
 
         Intent restartServiceIntent = new Intent(getApplicationContext(), this.getClass());
         restartServiceIntent.setPackage(getPackageName());
